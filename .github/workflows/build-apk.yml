@@ -1,0 +1,69 @@
+name: Compilar APK
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: true
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: android-actions/setup-android@v3
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.7'
+
+      - name: Versión
+        id: ver
+        run: |
+          V=$(tr -d ' \r\n' < VERSION)
+          echo "name=$V" >> "$GITHUB_OUTPUT"
+          echo "VERSION_NAME=$V" >> "$GITHUB_ENV"
+          echo "VERSION_CODE=${{ github.run_number }}" >> "$GITHUB_ENV"
+
+      - name: Copiar el juego dentro del APK
+        run: |
+          rm -rf android/app/src/main/assets/www
+          mkdir -p android/app/src/main/assets
+          cp -r web android/app/src/main/assets/www
+
+      - name: Compilar
+        run: gradle -p android :app:assembleRelease --no-daemon --stacktrace
+
+      - name: Renombrar
+        run: |
+          mkdir -p out
+          cp android/app/build/outputs/apk/release/app-release.apk "out/${{ steps.ver.outputs.name }}.apk"
+          ls -la out
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: apk-${{ steps.ver.outputs.name }}
+          path: out/*.apk
+
+      - name: Publicar versión
+        # Solo cuando el repo ya trae los sprites (si no, es una compilación de prueba).
+        if: hashFiles('web/assets/sprite/**') != ''
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.ver.outputs.name }}
+          name: PokéIsaac Android ${{ steps.ver.outputs.name }}
+          files: out/*.apk
+          make_latest: true
+          body: |
+            APK de PokéIsaac para Android (offline + cooperativo por wifi).
+            Descarga el archivo `${{ steps.ver.outputs.name }}.apk` de abajo e instálalo encima de la versión anterior.

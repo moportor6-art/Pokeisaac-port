@@ -1,0 +1,61 @@
+plugins {
+    id 'com.android.application'
+}
+
+// Versión: la define el workflow (VERSION_NAME / VERSION_CODE) o se usa la de abajo.
+def vName = System.getenv("VERSION_NAME") ?: "0.1"
+def vCode = (System.getenv("VERSION_CODE") ?: "1") as int
+
+android {
+    namespace 'mx.pokeisaac.port'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId 'mx.pokeisaac.port'
+        minSdk 24
+        targetSdk 34
+        versionCode vCode
+        versionName vName
+    }
+
+    signingConfigs {
+        release {
+            // Llave fija del repo: así cada APK nuevo se instala encima del anterior
+            // sin borrar el progreso guardado.
+            storeFile file('pokeisaac.keystore')
+            storePassword 'pokeisaac'
+            keyAlias 'pokeisaac'
+            keyPassword 'pokeisaac'
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            signingConfig signingConfigs.release
+        }
+        debug {
+            signingConfig signingConfigs.release
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    lint {
+        checkReleaseBuilds false
+        abortOnError false
+    }
+
+    androidResources {
+        // Los packs, audios e imágenes ya van comprimidos: no recomprimir.
+        noCompress += ['pack', 'ogg', 'mp3', 'wav', 'png', 'jpg', 'woff2']
+    }
+}
+
+dependencies {
+    implementation 'androidx.webkit:webkit:1.11.0'
+    implementation 'org.java-websocket:Java-WebSocket:1.5.7'
+}
