@@ -131,7 +131,7 @@ class RelayServer extends WebSocketServer {
             Topic x = topics.get(t);
             if (x == null) continue;
             x.subs.remove(ws);
-            if (dropPresence(x, ws)) pushPresence(t, x);
+            try { if (dropPresence(x, ws)) pushPresence(t, x); } catch (Exception ignored) { }
             gc(t, x);
         }
         c.topics.clear();
