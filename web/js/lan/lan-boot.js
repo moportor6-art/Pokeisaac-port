@@ -17,7 +17,8 @@
   var BRIDGE = window.PiAndroid && typeof window.PiAndroid.lanConnect === "function" ? window.PiAndroid : null;
 
   // --- 1. Offline -----------------------------------------------------------
-  window.PI_ASSETS = null;            // archivos locales: assets/<dir>/...
+  // Archivos locales (assets/<dir>/...) leídos desde los paquetes .pack igual que en la web.
+  window.PI_ASSETS = { base: "assets/", ver: "", vers: {}, bases: {}, mirror: null, packv: "local", packsOnBase: true };
   window.PI_COOP_URL = COOP_URL;      // Relay "configurado"
   window.PI_COOP_REGIONS = null;      // una sola "región": la wifi
   window.PI_ICE = [];                 // WebRTC solo con candidatos locales (sin STUN)
@@ -89,6 +90,7 @@
     this.room = (this.opts.query && this.opts.query.room) || "";
     this.handlers = {};
     this.acks = {};
+    this.buf = [];
     this.ackSeq = 0;
     this.connected = false;
     this.manual = false;
@@ -112,12 +114,11 @@
   };
   Socket.prototype._send = function (arr) { if (this.t) this.t.send(JSON.stringify(arr)); };
   Socket.prototype.emit = function (ev, data, ack) {
-    if (!this.connected) return this;
-    if (typeof ack === "function") {
-      var id = ++this.ackSeq;
-      this.acks[id] = ack;
-      this._send([ev, data, id]);
-    } else this._send([ev, data]);
+    var arr = [ev, data];
+    if (typeof ack === "function") { var id = ++this.ackSeq; this.acks[id] = ack; arr.push(id); }
+    // Como socket.io: lo emitido sin conexión se guarda y se manda al conectar.
+    if (!this.connected) { if (this.buf.length < 500) this.buf.push(arr); return this; }
+    this._send(arr);
     return this;
   };
   Socket.prototype.connect = function () {
@@ -128,7 +129,10 @@
     var opened = false;
     this.t = openTransport(this.room, {
       open: function () {
-        opened = true; self.tries = 0; self.connected = true; self._fire("connect");
+        opened = true; self.tries = 0; self.connected = true;
+        var b = self.buf; self.buf = [];
+        for (var i = 0; i < b.length; i++) self._send(b[i]);
+        self._fire("connect");
       },
       msg: function (s) {
         var m; try { m = JSON.parse(s); } catch (e) { return; }
@@ -152,6 +156,7 @@
   };
   Socket.prototype.disconnect = function () {
     this.manual = true;
+    this.buf = [];
     clearTimeout(this.timer);
     var was = this.connected;
     this.connected = false;
@@ -161,7 +166,11 @@
   };
   Socket.prototype.close = Socket.prototype.disconnect;
 
-  window.io = function (url, opts) { return new Socket(url, opts); };
+  window.io = function (url, opts) {
+    var sk = new Socket(url, opts);
+    window.PI_LAN.room = sk.room;
+    return sk;
+  };
 
   // --- Lista de salas en la wifi (pantalla de cooperativo) -------------------
   function lanRooms() {
@@ -172,6 +181,14 @@
   function paintRooms() {
     var ui = document.getElementById("coop-ui");
     if (!ui || ui.hidden) return;
+    // Dentro de una sala: mostrar el código para que los demás puedan escribirlo.
+    var top = ui.querySelector(".cp-top");
+    if (top && window.PI_LAN.room && !top.querySelector(".lan-code")) {
+      var chip = document.createElement("span");
+      chip.className = "cp-chip lan-code";
+      chip.textContent = "CÓDIGO " + window.PI_LAN.room;
+      top.insertBefore(chip, top.firstChild);
+    }
     var join = ui.querySelector(".coop-join");
     if (!join) return;
     var box = ui.querySelector(".lan-rooms");
@@ -210,7 +227,8 @@
       ".lan-title{font-size:11px;color:#ffd23c;margin-bottom:6px}" +
       ".lan-empty{font-size:10px;color:#a9a3c0;line-height:1.5}" +
       ".lan-room{display:block;width:100%;margin:4px 0;padding:8px;border:2px solid #3a3450;border-radius:6px;background:#2a2440;color:#dfe2f0;font:inherit;font-size:11px;text-align:left;cursor:pointer}" +
-      ".lan-room b{color:#7ee787}";
+      ".lan-room b{color:#7ee787}" +
+      ".lan-code{color:#ffd23c!important;border-color:#ffd23c!important;letter-spacing:2px}";
     document.head.appendChild(st);
   }
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", startRoomsWatcher);
