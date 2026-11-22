@@ -16,19 +16,30 @@
   var COOP_URL = "https://lan.pokeisaac.invalid";
   var BRIDGE = window.PiAndroid && typeof window.PiAndroid.lanConnect === "function" ? window.PiAndroid : null;
 
+  // Conexión: "local" (sin internet: cuenta en el teléfono + cooperativo por wifi) u "online" (la cuenta oficial
+  // de pokeisaac.com: clasificación, amigos, clan, chat y arena). Se cambia en
+  // Opciones → Datos → App Android. Los archivos del juego salen siempre del teléfono.
+  var NET_KEY = "pokeisaac.port.net";
+  var ONLINE = false;
+  try { ONLINE = localStorage.getItem(NET_KEY) === "online"; } catch (e) {}
+  try { BRIDGE && BRIDGE.setOnline && BRIDGE.setOnline(ONLINE); } catch (e) {}
+
   // --- 1. Offline -----------------------------------------------------------
   // Archivos locales (assets/<dir>/...) leídos desde los paquetes .pack igual que en la web.
   window.PI_ASSETS = { base: "assets/", ver: "", vers: {}, bases: {}, mirror: null, packv: "local", packsOnBase: true };
+  // El cooperativo es siempre por wifi: el servidor de cooperativo por internet solo acepta la web oficial.
   window.PI_COOP_URL = COOP_URL;      // Relay "configurado"
   window.PI_COOP_REGIONS = null;      // una sola "región": la wifi
   window.PI_ICE = [];                 // WebRTC solo con candidatos locales (sin STUN)
-  window.PI_LAN = { bridge: !!BRIDGE };
+  window.PI_LAN = { bridge: !!BRIDGE, online: ONLINE };
+  // Modo internet: la librería de la cuenta oficial (la misma versión que usa la web)
+  if (ONLINE) document.write('<script src="js/vendor/supabase-2.45.4.js"><\/script>');
 
   // Cuenta local: el juego trae su propio servidor simulado (tools/patch_game.py lo activa con PI_LOCAL_DB).
   // Todo lo que en la web vive en el servidor (Gacha, misiones, tienda, huevos, eventos…) se guarda aquí,
   // en el teléfono. La primera vez se entra como invitado, sin pedir correo ni contraseña.
-  window.PI_LOCAL_DB = true;
-  (function () {
+  window.PI_LOCAL_DB = !ONLINE;
+  if (!ONLINE) (function () {
     var DB = "pokeisaac.mock.db", SES = "pokeisaac.mock.session";
     try {
       var db = JSON.parse(localStorage.getItem(DB) || "null") || { users: [], profiles: {}, runs: [], seq: 1 };
@@ -44,8 +55,9 @@
         localStorage.setItem(SES, JSON.stringify({ id: u.id }));
       }
     } catch (e) { console.warn("[local-db]", e); }
-    // Primera vez en la app: apuntado AUTO TOTAL en táctil (se puede cambiar en Opciones → Táctil)
-    try {
+  })();
+  (function () {
+    try {   // primera vez en la app: apuntado AUTO TOTAL en táctil (también en modo internet)
       if (!localStorage.getItem("pokeisaac.port.aim")) {
         var st = JSON.parse(localStorage.getItem("pokeisaac.settings.v1") || "{}");
         if (!st.touchAim || st.touchAim === "stick") st.touchAim = "autofull";
@@ -54,9 +66,72 @@
       }
     } catch (e) {}
     var css = document.createElement("style");
-    css.textContent = ".acc-mock,.ap-mock{display:none!important}";
+    // En la app el acceso es con correo y contraseña: los botones de Google/Discord/«desde el navegador» abren
+    // páginas de pokeisaac.com que solo funcionan con la app oficial.
+    css.textContent = ".acc-mock,.ap-mock,.au-web,.au-google,.au-discord{display:none!important}";
     (document.head || document.documentElement).appendChild(css);
   })();
+
+  // --- Opciones → Datos → App Android (filas que añade tools/patch_game.py) ---
+  var GAME = null;
+  // Textos del port en el idioma del juego (español; inglés para el resto)
+  function lang() {
+    try { if (GAME && GAME.I18n && GAME.I18n.lang) return GAME.I18n.lang; } catch (e) {}
+    try { var l = JSON.parse(localStorage.getItem("pokeisaac.settings.v1") || "{}").lang; if (l && l !== "auto") return l; } catch (e) {}
+    return (navigator.language || "es").slice(0, 2);
+  }
+  function L(es, en) { return lang() === "es" ? es : en; }
+  function ask(o) { return GAME && GAME.Confirm ? GAME.Confirm.ask(o) : Promise.resolve(window.confirm(o.title + "\n\n" + o.body.join("\n"))); }
+  window.PI_PORT = {
+    online: ONLINE,
+    netName: ONLINE ? "INTERNET" : L("WIFI LOCAL", "LOCAL WIFI"),
+    netDesc: ONLINE
+      ? L("Cuenta oficial de pokeisaac.com: clasificación, amigos, clan, chat y arena. El cooperativo sigue siendo por wifi.",
+          "Official pokeisaac.com account: leaderboard, friends, clan, chat and arena. Co-op is still over wifi.")
+      : L("Sin internet: tu cuenta, Gacha y misiones se guardan en el teléfono; cooperativo por wifi.",
+          "No internet needed: your account, Gacha and missions are saved on the phone; co-op over wifi."),
+    action: function (id, g) {
+      GAME = g || GAME;
+      if (id === "portUpdate") {
+        if (BRIDGE && BRIDGE.updCheck) BRIDGE.updCheck();
+        else ask({ title: L("Actualizaciones", "Updates"), body: [L("Solo en la app de Android.", "Only in the Android app.")], yes: "OK" });
+      } else if (id === "portHistory") {
+        if (BRIDGE && BRIDGE.updHistory) BRIDGE.updHistory();
+      } else if (id === "portReset") {
+        ask({ title: L("Volver a la versión de la APK", "Back to the APK version"),
+              body: [L("Se borran las actualizaciones descargadas y el juego vuelve a la versión que trae la APK. Tus partidas no se tocan.",
+                       "Downloaded updates are removed and the game goes back to the version inside the APK. Your saves are kept.")],
+              yes: L("Volver", "Revert"), no: L("Cancelar", "Cancel"), danger: true })
+          .then(function (ok) { if (ok && BRIDGE && BRIDGE.updReset) BRIDGE.updReset(); });
+      } else if (id === "portNet") {
+        var body = ONLINE
+          ? [L("Pasas a WIFI LOCAL: juegas sin internet con tu cuenta del teléfono y el cooperativo es por wifi.",
+               "Switch to LOCAL WIFI: play offline with the account saved on your phone; co-op over wifi."),
+             L("Tu cuenta oficial no se pierde: vuelves a ella cuando cambies otra vez a internet.",
+               "Your official account is kept: you get it back when you switch to internet again.")]
+          : [L("Pasas a INTERNET: entras con tu cuenta oficial de pokeisaac.com (correo y contraseña) y tienes clasificación, amigos, clan, chat y arena.",
+               "Switch to INTERNET: sign in with your official pokeisaac.com account (email and password) for leaderboard, friends, clan, chat and arena."),
+             L("Es otra cuenta: lo que hiciste sin internet se queda en el teléfono y vuelve cuando regreses a wifi local.",
+               "It is a separate account: your offline progress stays on the phone and comes back when you return to local wifi.")];
+        ask({ title: L("Conexión", "Connection"), body: body, yes: ONLINE ? L("Pasar a wifi local", "Use local wifi") : L("Pasar a internet", "Use internet"), no: L("Cancelar", "Cancel") })
+          .then(function (ok) {
+            if (!ok) return;
+            localStorage.setItem(NET_KEY, ONLINE ? "local" : "online");
+            location.reload();
+          });
+      }
+    }
+  };
+  // Respuesta del historial (Updater.history)
+  window.fusionUpdHistory = function (json) {
+    var list = [];
+    try { list = JSON.parse(json) || []; } catch (e) {}
+    var body = list.length ? list.slice(0, 8).map(function (r) {
+      var nota = String(r.notes || "").split("\n")[0];
+      return r.version + " · " + String(r.date || "").slice(0, 10) + (nota ? " — " + nota : "");
+    }) : [L("No se pudo cargar el historial (¿sin internet?).", "Could not load the history (no internet?).")];
+    ask({ title: L("Versiones de PokéIsaac Android", "PokéIsaac Android versions"), body: body, yes: "OK" });
+  };
 
   // El juego cargó: el actualizador de la app ya no tiene que volver a la versión anterior
   window.addEventListener("load", function () {

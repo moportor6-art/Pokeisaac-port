@@ -60,13 +60,27 @@ parche("fps", 'values:[0,30],names:["SIN LÍMITE","30 FPS"],desc:"Ahorra baterí
        'values:[0,120,60,30],names:["SIN LÍMITE","120 FPS","60 FPS","30 FPS"],'
        'desc:"SIN LÍMITE va a la frecuencia de tu pantalla (90/120/144 Hz si la tiene). 60 o 30 ahorran batería."')
 
+# 4. Opciones → Datos → App Android: conexión (wifi local / internet), actualizaciones e historial.
+#    Las acciones las hace window.PI_PORT (js/lan/lan-boot.js).
+parche("app: filas", '{id:"report",label:"Reportar un fallo",kind:"btn",',
+       '...(window.PI_PORT?[{id:"portNet",label:"Conexión",kind:"btn",btn:window.PI_PORT.netName,desc:window.PI_PORT.netDesc},'
+       '{id:"portUpdate",label:"Actualizaciones",kind:"btn",btn:"Buscar",desc:"Si solo cambió el juego, baja únicamente los archivos nuevos."},'
+       '{id:"portHistory",label:"Versiones",kind:"btn",btn:"Ver",desc:"Las versiones publicadas del port y sus novedades."},'
+       '{id:"portReset",label:"Versión de la APK",kind:"btn",btn:"Volver",danger:!0,desc:"Si algo falla tras una actualización: vuelve al juego que trae la APK."}]:[]),'
+       '{id:"report",label:"Reportar un fallo",kind:"btn",')
+parche("app: grupo", 'Datos:[["Cuenta y datos",["save","cloud","report","directConn","reset"]]]',
+       'Datos:[["Cuenta y datos",["save","cloud","report","directConn","reset"]],["App Android",["portNet","portUpdate","portHistory","portReset"]]]')
+parche("app: acciones", 'else"redeem"===o.id?', 'else/^port/.test(o.id)&&window.PI_PORT?window.PI_PORT.action(o.id,e):"redeem"===o.id?')
+
 # Traducciones de los textos nuevos (inglés y francés van dentro del juego)
 D_ES_AIM = "AUTO TOTAL: dispara solo, primero a los enemigos y luego a lo que se rompe. AUTO: mantenlo y apunta solo al enemigo más cercano."
 D_ES_FPS = "SIN LÍMITE va a la frecuencia de tu pantalla (90/120/144 Hz si la tiene). 60 o 30 ahorran batería."
 for viejo, extra in [
     ('"SIN LÍMITE":"UNLIMITED"', {"AUTO TOTAL": "FULL AUTO", D_ES_AIM: "FULL AUTO: fires on its own, enemies first and then breakable objects. AUTO: hold it and it aims at the nearest enemy.",
                                    D_ES_FPS: "UNLIMITED follows your screen's refresh rate (90/120/144 Hz if it has it). 60 or 30 save battery.",
-                                   "Dispara solo · arrastra: apuntar a mano": "Fires on its own · drag: aim by hand"}),
+                                   "Dispara solo · arrastra: apuntar a mano": "Fires on its own · drag: aim by hand",
+                                   "App Android": "Android app", "Conexión": "Connection", "Actualizaciones": "Updates", "Versiones": "Versions",
+                                   "Versión de la APK": "APK version", "WIFI LOCAL": "LOCAL WIFI", "INTERNET": "INTERNET"}),
     ('"SIN LÍMITE":"ILLIMITÉ"', {"AUTO TOTAL": "AUTO TOTAL", D_ES_AIM: "AUTO TOTAL : tire tout seul, d'abord sur les ennemis puis sur les objets cassables. AUTO : maintenez-le et il vise l'ennemi le plus proche.",
                                   D_ES_FPS: "ILLIMITÉ suit la fréquence de votre écran (90/120/144 Hz). 60 ou 30 économisent la batterie.",
                                   "Dispara solo · arrastra: apuntar a mano": "Tire tout seul · glisser : viser à la main"}),
