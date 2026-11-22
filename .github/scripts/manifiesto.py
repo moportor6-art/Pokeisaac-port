@@ -48,6 +48,13 @@ for p in NATIVE:
     for f in sorted(walk(p)):
         nat.update(f.replace(os.sep, '/').encode())
         nat.update(sha(f).encode())
+# "native" decide si el actualizador baja la APK completa (~245 MB) en vez de solo los archivos que cambiaron.
+# No se calcula sola: es el valor de android/NATIVO y solo se cambia a mano cuando el juego NECESITA la parte
+# Android nueva (si no, cualquier retoque en Java obligaría a todos a bajarse el juego entero otra vez).
+# Las mejoras de Java que no son imprescindibles llegan con la siguiente APK que se instale.
+# "nativeReal" es la huella de verdad, para saber qué APK trae cada versión.
+req = open('android/NATIVO').read().split()[0] if os.path.exists('android/NATIVO') else nat.hexdigest()
 os.makedirs(os.path.dirname(out), exist_ok=True)
-json.dump({'build': build, 'commit': commit, 'native': nat.hexdigest(), 'files': files}, open(out, 'w'), separators=(',', ':'))
-print(f'{len(files)} archivos · nativo {nat.hexdigest()[:12]}')
+json.dump({'build': build, 'commit': commit, 'native': req, 'nativeReal': nat.hexdigest(), 'files': files},
+          open(out, 'w'), separators=(',', ':'))
+print(f'{len(files)} archivos · nativo exigido {req[:12]} · real {nat.hexdigest()[:12]}')

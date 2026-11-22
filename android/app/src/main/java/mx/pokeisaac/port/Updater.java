@@ -3,6 +3,7 @@ package mx.pokeisaac.port;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.app.PendingIntent;
+import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageInfo;
@@ -202,23 +203,27 @@ final class Updater {
             try {
                 JSONObject rel = new JSONObject(get(LATEST));
                 final String version = rel.optString("tag_name");
-                String manUrl = null, apkUrl = null;
+                String manUrl = null, apkUrl = null, manKey = null;
                 JSONArray assets = rel.getJSONArray("assets");
                 for (int i = 0; i < assets.length(); i++) {
                     JSONObject a = assets.getJSONObject(i);
                     String n = a.optString("name");
-                    if (n.equals("contenido.json")) manUrl = a.optString("browser_download_url");
+                    if (n.equals("contenido.json")) { manUrl = a.optString("browser_download_url"); manKey = a.optLong("id") + "@" + a.optString("updated_at"); }
                     else if (n.endsWith(".apk")) apkUrl = a.optString("browser_download_url");
                 }
                 if (manUrl == null) throw new Exception("la versión no trae su manifiesto");
+                // El manifiesto pesa ~1 MB: solo se baja si la versión publicada cambió desde la última vez
+                if (!manual && manKey.equals(prefs.getString("seenMan", "")) && System.currentTimeMillis() < prefs.getLong("seenUntil", 0)) return;
                 JSONObject man = new JSONObject(get(manUrl));
                 final int remote = man.getInt("build");
                 int current = Math.max(base.getInt("build"), overlayBuild);
                 if (remote <= current) {
+                    seen(manKey, Long.MAX_VALUE);
                     if (manual) toast("Ya tienes la última versión.");
                     return;
                 }
-                if (!manual && prefs.getInt("skip", 0) == remote) return;
+                if (!manual && prefs.getInt("skip", 0) == remote) { seen(manKey, Long.MAX_VALUE); return; }
+                seen(manKey, System.currentTimeMillis() + 12 * 3600_000L);   // si dice «Más tarde», se lo recuerda como mucho cada 12 h
                 String notes = rel.optString("body").trim();
                 if (!man.optString("native").equals(base.optString("native"))) {
                     if (apkUrl == null) throw new Exception("la versión no trae la APK");
@@ -229,7 +234,8 @@ final class Updater {
                             + ") y Android te pide confirmar la instalación. Tus partidas se conservan.", () -> installApk(url, sha, size)));
                 } else {
                     final Plan plan = plan(man);
-                    if (plan.download.isEmpty() && plan.reuse.isEmpty() && plan.removed.isEmpty()) {
+                    if (plan.download.isEmpty() && plan.reuse.isEmpty() && plan.removed.isEmpty() && plan.files.size() == overlay.size()) {
+                        seen(manKey, Long.MAX_VALUE);   // la versión nueva solo cambió la parte Android (no imprescindible)
                         if (manual) toast("Ya tienes la última versión.");
                         return;
                     }
@@ -244,11 +250,20 @@ final class Updater {
         }).start();
     }
 
+    private void seen(String key, long until) {
+        prefs.edit().putString("seenMan", key).putLong("seenUntil", until).apply();
+    }
+
     private void offer(int build, String version, String notes, String what, Runnable go) {
         if (act.isFinishing()) return;
         StringBuilder msg = new StringBuilder();
         if (!notes.isEmpty()) msg.append("Novedades:\n").append(notes.length() > 1500 ? notes.substring(0, 1500) + "…" : notes).append("\n\n");
         msg.append(what);
+        try {
+            android.net.ConnectivityManager cm = (android.net.ConnectivityManager) act.getSystemService(Context.CONNECTIVITY_SERVICE);
+            if (cm != null && cm.isActiveNetworkMetered()) msg.append("\n\nEstás con datos móviles: si prefieres, pulsa «Más tarde» y actualiza con wifi.");
+        } catch (Exception ignored) {
+        }
         new AlertDialog.Builder(act)
                 .setTitle("Nueva versión de PokéIsaac: " + version)
                 .setMessage(msg.toString())
