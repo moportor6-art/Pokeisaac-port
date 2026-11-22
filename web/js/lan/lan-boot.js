@@ -56,8 +56,31 @@
     } catch (e) {}
     var css = document.createElement("style");
     // Sin servidor: fuera los botones para entrar con Google/Discord/el navegador.
-    css.textContent = ".acc-mock,.ap-mock,.au-web,.au-google,.au-discord{display:none!important}";
+    // Sin cuentas: en «Mi cuenta» solo quedan el avatar y el nombre de entrenador
+    css.textContent = ".acc-mock,.ap-mock,.au-web,.au-google,.au-discord," +
+      "#account-ui .ap-secpn,#account-ui .ap-dcpn,#account-ui .ap-sespn,#account-ui .ap-chip.is-guest,#account-ui .ap-mail{display:none!important}";
     (document.head || document.documentElement).appendChild(css);
+    try { localStorage.setItem("pokeisaac.kofipromo.off", "1"); } catch (e) {}
+    // Todo local: ningún enlace saca del juego (Discord, Ko-fi, web…)
+    window.open = function () { return null; };
+    document.addEventListener("click", function (ev) {
+      var a = ev.target && ev.target.closest && ev.target.closest("a[href]");
+      if (a && /^(https?:|mailto:)/i.test(a.getAttribute("href") || "") && a.host !== location.host) { ev.preventDefault(); ev.stopPropagation(); }
+    }, true);
+    // «Mi cuenta»: fuera la fila «Nube: sincronizado»
+    function sinNube() {
+      var ui = document.getElementById("account-ui");
+      if (!ui) return;
+      var dts = ui.querySelectorAll("dt");
+      for (var i = 0; i < dts.length; i++) {
+        if (/^(nube|cloud|nuage)$/i.test(dts[i].textContent.trim())) {
+          var dd = dts[i].nextElementSibling;
+          dts[i].style.display = "none";
+          if (dd && dd.tagName === "DD") dd.style.display = "none";
+        }
+      }
+    }
+    new MutationObserver(sinNube).observe(document.documentElement, { childList: true, subtree: true });
   })();
 
   // --- Opciones → Datos → App Android (filas que añade tools/patch_game.py) ---

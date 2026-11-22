@@ -181,11 +181,8 @@ public class MainActivity extends Activity {
                         "setTimeout(function(){window.dispatchEvent(new KeyboardEvent('keyup',o));},60);})()", null);
     }
 
+    /** Todo es local: el juego no abre páginas de fuera (Discord, Ko-fi, web…). Los enlaces no hacen nada. */
     void openExternal(String url) {
-        try {
-            startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(url)));
-        } catch (Exception ignored) {
-        }
     }
 
     /** window.PiAndroid */

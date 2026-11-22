@@ -62,11 +62,11 @@ parche("fps", 'values:[0,30],names:["SIN LÍMITE","30 FPS"],desc:"Ahorra baterí
 
 # 4. Opciones → Datos → App Android: actualizaciones, historial y volver a la versión de la APK.
 #    Las acciones las hace window.PI_PORT (js/lan/lan-boot.js).
-parche("app: filas", '{id:"report",label:"Reportar un fallo",kind:"btn",',
+parche("app: filas", '{key:"directConn",label:"Conexión directa (cooperativo)",',
        '...(window.PI_PORT?[{id:"portUpdate",label:"Actualizaciones",kind:"btn",btn:"Buscar",desc:"Si solo cambió el juego, baja únicamente los archivos nuevos."},'
        '{id:"portHistory",label:"Versiones",kind:"btn",btn:"Ver",desc:"Las versiones publicadas del port y sus novedades."},'
        '{id:"portReset",label:"Versión de la APK",kind:"btn",btn:"Volver",danger:!0,desc:"Si algo falla tras una actualización: vuelve al juego que trae la APK."}]:[]),'
-       '{id:"report",label:"Reportar un fallo",kind:"btn",')
+       '{key:"directConn",label:"Conexión directa (cooperativo)",')
 parche("app: grupo", 'Datos:[["Cuenta y datos",["save","cloud","report","directConn","reset"]]]',
        'Datos:[["Cuenta y datos",["save","cloud","report","directConn","reset"]],["App Android",["portUpdate","portHistory","portReset"]]]')
 parche("app: acciones", 'else"redeem"===o.id?', 'else/^port/.test(o.id)&&window.PI_PORT?window.PI_PORT.action(o.id,e):"redeem"===o.id?')
@@ -76,6 +76,50 @@ parche("app: acciones", 'else"redeem"===o.id?', 'else/^port/.test(o.id)&&window.
 parche("menú: lado derecho", 've=["missions","friends","clan","chat"],', 've=window.PI_LAN?["missions"]:["missions","friends","clan","chat"],')
 parche("menú: botones que no están", 'd=(e,r,l,c,d,u)=>{const p=s(e),m=i(e)||n(e),', 'd=(e,r,l,c,d,u)=>{const p=s(e);if(!p)return;const m=i(e)||n(e),')
 
+# 6. Todo local: sin crear cuenta, sin donaciones y sin enlaces que saquen del juego.
+L = "window.PI_LAN"
+parche("sin donar: botón de Ko-fi", 'n.drawKofiBtn=function(e,a,t,s,n){', 'n.drawKofiBtn=function(e,a,t,s,n){if(' + L + ')return;')
+parche("sin donar: zona del botón", 'return o.kofi=(()=>{', 'return o.kofi=' + L + '?{x:-9999,y:-9999,w:0,h:0}:(()=>{')
+parche("sin donar: aviso de Ko-fi", 'if(o||e.query&&e.query.nokofi)return;', 'if(o||' + L + '||e.query&&e.query.nokofi)return;')
+parche("sin donar: ventana de Ko-fi", 'function q(){if(R)return;', 'function q(){if(R||' + L + ')return;')
+parche("sin donar: Apoyar el juego", 'e.Support={open:M,', 'e.Support={open:' + L + '?()=>{}:M,')
+parche("sin donar: Mercado", 'function xe(e){const a=r.st&&r.st.items||[];',
+       'function xe(e){const L0=xe0(e);return ' + L + '&&Array.isArray(L0)?L0.filter((i=>!i||!(i.kofi||i.ks||i.eur))):L0}'
+       'function xe0(e){const a=r.st&&r.st.items||[];')
+parche("sin enlaces: Discord del menú", 'const xe=["discord","wiki","credits"];', 'const xe=' + L + '?["wiki","credits"]:["discord","wiki","credits"];')
+parche("sin enlaces: menú ≡", '].filter((([a])=>!e.Featured||!e.Featured.shown||e.Featured.shown(a))),ze=',
+       '].filter((([a])=>!e.Featured||!e.Featured.shown||e.Featured.shown(a))).filter((([a])=>!' + L + '||!["redeem","apps","mods"].includes(a))),ze=')
+parche("sin cuenta: tarjeta del perfil", 'T.user.isGuest?T.ui.show("upgrade"):T.ui.show("account")',
+       'T.user.isGuest&&!' + L + '?T.ui.show("upgrade"):T.ui.show("account")')
+parche("sin cuenta: texto del perfil", 'T.user.isGuest?"Guardar progreso":"Mi cuenta"', 'T.user.isGuest&&!' + L + '?"Guardar progreso":"Mi cuenta"')
+parche("sin cuenta: nube", '{id:"cloud",label:"Ajustes en la nube",kind:"info"},', '...(' + L + '?[]:[{id:"cloud",label:"Ajustes en la nube",kind:"info"}]),')
+parche("sin servidor: reportar", '{id:"report",label:"Reportar un fallo",kind:"btn",btn:"Reportar",desc:"Cuéntanos qué ha fallado; puedes adjuntar la versión y el último error."},',
+       '...(' + L + '?[]:[{id:"report",label:"Reportar un fallo",kind:"btn",btn:"Reportar",desc:"Cuéntanos qué ha fallado; puedes adjuntar la versión y el último error."}]),')
+
+parche("sin cuenta: etiqueta", 'T.tag=function(){return"loading"===T.status?', 'T.tag=function(){return ' + L + '?{text:"Local",color:"#6fdc5a"}:"loading"===T.status?')
+parche("sin cuenta: perfil", 'M="loading"===A?"CONECTANDO":S?n.user.isGuest?"EN LÍNEA · INVITADO":"EN LÍNEA":"DESCONECTADO"',
+       'M=' + L + '?"EN ESTE TELÉFONO":"loading"===A?"CONECTANDO":S?n.user.isGuest?"EN LÍNEA · INVITADO":"EN LÍNEA":"DESCONECTADO"')
+
+# Parche del 02/11/2026 que solo hablaba de Ko-fi: fuera de la lista de PARCHES
+i = s.find('{id:"2026-11-02-2",ver:"1.1.1"')
+if i >= 0:
+    j = s.index('{id:"2026-11-02-1",', i)
+    s = s[:i] + s[j:]
+    cambios += 1
+
+# Textos de aspectos que decían que se consiguen pagando
+import re
+for viejo, nuevo in [
+    (r"Por apoyar el juego en Ko-fi(?: \((?:Bronze|Silver|Gold|Diamond|Legend|Leyenda)\))?\.", "Aspecto especial."),
+    (r"For supporting the game on Ko-fi(?: \((?:Bronze|Silver|Gold|Diamond|Legend)\))?\.", "Special look."),
+    (r"Pour avoir soutenu le jeu sur Ko-fi(?: \((?:Bronze|Silver|Gold|Diamond|Légende|Legend)\))?\.", "Apparence spéciale."),
+    (r"Solo para los 5 Legend de Ko-fi\.", "Aspecto legendario."),
+    (r"Por mejorar el servidor de Discord(?: \(3 meses\))?\.", "Aspecto especial."),
+    (r"Lo tienen los Diamond de Ko-fi \(50 € donados en total\)\.", "Aspecto especial."),
+]:
+    s, n = re.subn(viejo, nuevo, s)
+    cambios += n > 0
+
 # Traducciones de los textos nuevos (inglés y francés van dentro del juego)
 D_ES_AIM = "AUTO TOTAL: dispara solo, primero a los enemigos y luego a lo que se rompe. AUTO: mantenlo y apunta solo al enemigo más cercano."
 D_ES_FPS = "SIN LÍMITE va a la frecuencia de tu pantalla (90/120/144 Hz si la tiene). 60 o 30 ahorran batería."
@@ -84,10 +128,11 @@ for viejo, extra in [
                                    D_ES_FPS: "UNLIMITED follows your screen's refresh rate (90/120/144 Hz if it has it). 60 or 30 save battery.",
                                    "Dispara solo · arrastra: apuntar a mano": "Fires on its own · drag: aim by hand",
                                    "App Android": "Android app", "Conexión": "Connection", "Actualizaciones": "Updates", "Versiones": "Versions",
-                                   "Versión de la APK": "APK version", "WIFI LOCAL": "LOCAL WIFI", "INTERNET": "INTERNET"}),
+                                   "Versión de la APK": "APK version", "EN ESTE TELÉFONO": "ON THIS PHONE"}),
     ('"SIN LÍMITE":"ILLIMITÉ"', {"AUTO TOTAL": "AUTO TOTAL", D_ES_AIM: "AUTO TOTAL : tire tout seul, d'abord sur les ennemis puis sur les objets cassables. AUTO : maintenez-le et il vise l'ennemi le plus proche.",
                                   D_ES_FPS: "ILLIMITÉ suit la fréquence de votre écran (90/120/144 Hz). 60 ou 30 économisent la batterie.",
-                                  "Dispara solo · arrastra: apuntar a mano": "Tire tout seul · glisser : viser à la main"}),
+                                  "Dispara solo · arrastra: apuntar a mano": "Tire tout seul · glisser : viser à la main",
+                                  "EN ESTE TELÉFONO": "SUR CE TÉLÉPHONE"}),
 ]:
     import json
     nuevo = viejo + "," + ",".join(json.dumps(k, ensure_ascii=False) + ":" + json.dumps(v, ensure_ascii=False) for k, v in extra.items())
