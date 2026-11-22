@@ -24,6 +24,45 @@
   window.PI_ICE = [];                 // WebRTC solo con candidatos locales (sin STUN)
   window.PI_LAN = { bridge: !!BRIDGE };
 
+  // Cuenta local: el juego trae su propio servidor simulado (tools/patch_game.py lo activa con PI_LOCAL_DB).
+  // Todo lo que en la web vive en el servidor (Gacha, misiones, tienda, huevos, eventos…) se guarda aquí,
+  // en el teléfono. La primera vez se entra como invitado, sin pedir correo ni contraseña.
+  window.PI_LOCAL_DB = true;
+  (function () {
+    var DB = "pokeisaac.mock.db", SES = "pokeisaac.mock.session";
+    try {
+      var db = JSON.parse(localStorage.getItem(DB) || "null") || { users: [], profiles: {}, runs: [], seq: 1 };
+      var ses = JSON.parse(localStorage.getItem(SES) || "null");
+      if (!ses || !db.users.some(function (u) { return u.id === ses.id; })) {
+        var u = db.users[0];
+        if (!u) {
+          var id = crypto.randomUUID ? crypto.randomUUID() : "local-" + Date.now().toString(16) + "-" + Math.random().toString(16).slice(2);
+          u = { id: id, email: "", confirmed: true, is_anonymous: true, meta: { app: "pokeisaac" } };
+          db.users.push(u);
+          localStorage.setItem(DB, JSON.stringify(db));
+        }
+        localStorage.setItem(SES, JSON.stringify({ id: u.id }));
+      }
+    } catch (e) { console.warn("[local-db]", e); }
+    // Primera vez en la app: apuntado AUTO TOTAL en táctil (se puede cambiar en Opciones → Táctil)
+    try {
+      if (!localStorage.getItem("pokeisaac.port.aim")) {
+        var st = JSON.parse(localStorage.getItem("pokeisaac.settings.v1") || "{}");
+        if (!st.touchAim || st.touchAim === "stick") st.touchAim = "autofull";
+        localStorage.setItem("pokeisaac.settings.v1", JSON.stringify(st));
+        localStorage.setItem("pokeisaac.port.aim", "1");
+      }
+    } catch (e) {}
+    var css = document.createElement("style");
+    css.textContent = ".acc-mock,.ap-mock{display:none!important}";
+    (document.head || document.documentElement).appendChild(css);
+  })();
+
+  // El juego cargó: el actualizador de la app ya no tiene que volver a la versión anterior
+  window.addEventListener("load", function () {
+    setTimeout(function () { try { BRIDGE && BRIDGE.updBooted && BRIDGE.updBooted(); } catch (e) {} }, 3000);
+  });
+
   // --- 2. /health del relay -------------------------------------------------
   var realFetch = window.fetch ? window.fetch.bind(window) : null;
   if (realFetch) {

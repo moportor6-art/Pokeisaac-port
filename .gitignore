@@ -5,3 +5,5 @@ android/app/src/main/assets/www/
 android/local.properties
 tools/node_modules/
 *.part
+android/app/src/main/assets/contenido-base.json
+contenido.json

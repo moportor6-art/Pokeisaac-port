@@ -43,6 +43,11 @@ jobs:
           mkdir -p android/app/src/main/assets
           cp -r web android/app/src/main/assets/www
 
+      # Lista de archivos con su huella (va dentro del APK): el actualizador de la app compara con la de la
+      # última versión publicada y baja solo lo que cambió. Si cambió la parte nativa, baja el APK completo.
+      - name: Manifiesto del contenido
+        run: python3 .github/scripts/manifiesto.py ${{ github.run_number }} ${{ github.sha }} android/app/src/main/assets/contenido-base.json
+
       - name: Compilar
         run: gradle -p android :app:assembleRelease --no-daemon --stacktrace
 
@@ -50,6 +55,10 @@ jobs:
         run: |
           mkdir -p out
           cp android/app/build/outputs/apk/release/app-release.apk "out/${{ steps.ver.outputs.name }}.apk"
+          python3 .github/scripts/manifiesto.py --apk "out/${{ steps.ver.outputs.name }}.apk" android/app/src/main/assets/contenido-base.json contenido.json
+          git log -1 --pretty=%B | grep -v '^Co-Authored-By\|^Claude-Session' > notas.md
+          echo "" >> notas.md
+          echo "Instala el archivo \`${{ steps.ver.outputs.name }}.apk\` encima de la versión anterior (desde la 0.2 la app se actualiza sola)." >> notas.md
           ls -la out
 
       - uses: actions/upload-artifact@v4
@@ -64,8 +73,9 @@ jobs:
         with:
           tag_name: v${{ steps.ver.outputs.name }}
           name: PokéIsaac Android ${{ steps.ver.outputs.name }}
-          files: out/*.apk
+          target_commitish: ${{ github.sha }}
+          files: |
+            out/*.apk
+            contenido.json
           make_latest: true
-          body: |
-            APK de PokéIsaac para Android (offline + cooperativo por wifi).
-            Descarga el archivo `${{ steps.ver.outputs.name }}.apk` de abajo e instálalo encima de la versión anterior.
+          body_path: notas.md

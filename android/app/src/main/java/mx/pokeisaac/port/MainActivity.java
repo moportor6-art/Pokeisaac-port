@@ -7,6 +7,7 @@ import android.content.res.AssetManager;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.view.Display;
 import android.view.View;
 import android.view.WindowInsets;
 import android.view.WindowInsetsController;
@@ -29,7 +30,8 @@ import java.util.Map;
 
 /**
  * Contenedor de PokéIsaac: carga el juego desde los assets del APK (sin internet)
- * y expone window.PiAndroid (salir, abrir enlaces y el cooperativo por wifi).
+ * y expone window.PiAndroid (salir, abrir enlaces, el cooperativo por wifi y el actualizador).
+ * La pantalla va a su frecuencia máxima (90/120/144 Hz) si el teléfono la tiene.
  */
 public class MainActivity extends Activity {
 
@@ -38,6 +40,7 @@ public class MainActivity extends Activity {
 
     private WebView web;
     private LanManager lan;
+    private Updater updater;
 
     @SuppressLint({"SetJavaScriptEnabled", "AddJavascriptInterface"})
     @Override
@@ -49,6 +52,7 @@ public class MainActivity extends Activity {
         web.setBackgroundColor(0xFF1B1528);
         setContentView(web);
         hideSystemUi();
+        maxRefreshRate();
 
         WebSettings s = web.getSettings();
         s.setJavaScriptEnabled(true);
@@ -65,9 +69,10 @@ public class MainActivity extends Activity {
         s.setCacheMode(WebSettings.LOAD_DEFAULT);
         s.setUserAgentString(s.getUserAgentString() + " PokeIsaacAndroid");
 
+        updater = new Updater(this, web);   // antes de cargar: decide de dónde sale cada archivo del juego
         final WebViewAssetLoader loader = new WebViewAssetLoader.Builder()
                 .setDomain(HOST)
-                .addPathHandler("/", new WwwHandler(getAssets()))
+                .addPathHandler("/", new WwwHandler(getAssets(), updater))
                 .build();
 
         web.setWebViewClient(new WebViewClient() {
@@ -95,6 +100,27 @@ public class MainActivity extends Activity {
 
         if (savedInstanceState != null) web.restoreState(savedInstanceState);
         else web.loadUrl(START_URL);
+        web.postDelayed(() -> updater.check(false), 5000);   // busca actualizaciones al abrir (sin internet, nada)
+    }
+
+    /** Pide a Android la frecuencia de pantalla más alta (sin esto muchos teléfonos dejan la app a 60 Hz). */
+    @SuppressWarnings("deprecation")
+    private void maxRefreshRate() {
+        if (Build.VERSION.SDK_INT < 23) return;
+        try {
+            Display d = Build.VERSION.SDK_INT >= 30 ? getDisplay() : getWindowManager().getDefaultDisplay();
+            if (d == null) return;
+            Display.Mode cur = d.getMode(), best = cur;
+            for (Display.Mode m : d.getSupportedModes()) {
+                if (m.getPhysicalWidth() == cur.getPhysicalWidth() && m.getPhysicalHeight() == cur.getPhysicalHeight()
+                        && m.getRefreshRate() > best.getRefreshRate()) best = m;
+            }
+            WindowManager.LayoutParams lp = getWindow().getAttributes();
+            lp.preferredDisplayModeId = best.getModeId();
+            lp.preferredRefreshRate = best.getRefreshRate();
+            getWindow().setAttributes(lp);
+        } catch (Exception ignored) {
+        }
     }
 
     private void hideSystemUi() {
@@ -171,11 +197,21 @@ public class MainActivity extends Activity {
         @JavascriptInterface public void lanClose(String id) { lan.close(id); }
         @JavascriptInterface public String lanRooms() { return lan.roomsJson(); }
         @JavascriptInterface public String lanInfo() { return lan.infoJson(); }
+        @JavascriptInterface public String updInfo() { return updater.info(); }
+        @JavascriptInterface public void updCheck() { runOnUiThread(() -> updater.check(true)); }
+        @JavascriptInterface public void updHistory() { updater.history(); }
+        @JavascriptInterface public void updReset() { updater.reset(); }
+        @JavascriptInterface public void updBooted() { updater.booted(); }
+        @JavascriptInterface public float refreshRate() {
+            try { return (Build.VERSION.SDK_INT >= 30 ? getDisplay() : getWindowManager().getDefaultDisplay()).getRefreshRate(); }
+            catch (Exception e) { return 60f; }
+        }
     }
 
-    /** Sirve assets/www/ del APK. */
+    /** Sirve assets/www/ del APK; los archivos que bajó el actualizador van primero. */
     static class WwwHandler implements WebViewAssetLoader.PathHandler {
         private final AssetManager am;
+        private final Updater upd;
         private static final Map<String, String> MIME = new HashMap<>();
         static {
             MIME.put("html", "text/html"); MIME.put("js", "application/javascript"); MIME.put("css", "text/css");
@@ -188,7 +224,7 @@ public class MainActivity extends Activity {
             MIME.put("pack", "application/octet-stream");
         }
 
-        WwwHandler(AssetManager am) { this.am = am; }
+        WwwHandler(AssetManager am, Updater upd) { this.am = am; this.upd = upd; }
 
         @Override
         public WebResourceResponse handle(@NonNull String path) {
@@ -197,7 +233,9 @@ public class MainActivity extends Activity {
             String ext = path.substring(path.lastIndexOf('.') + 1).toLowerCase();
             String mime = MIME.containsKey(ext) ? MIME.get(ext) : "application/octet-stream";
             try {
-                InputStream in = am.open("www/" + path, AssetManager.ACCESS_STREAMING);
+                if (upd != null && upd.isRemoved(path)) throw new IOException("ya no existe");
+                java.io.File f = upd == null ? null : upd.overlayFile(path);
+                InputStream in = f != null ? new java.io.FileInputStream(f) : am.open("www/" + path, AssetManager.ACCESS_STREAMING);
                 WebResourceResponse r = new WebResourceResponse(mime, mime.startsWith("text") || mime.endsWith("javascript") || mime.endsWith("json") ? "utf-8" : null, in);
                 Map<String, String> h = new HashMap<>();
                 h.put("Access-Control-Allow-Origin", "*");
