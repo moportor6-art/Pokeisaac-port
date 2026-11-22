@@ -38,9 +38,6 @@ public class MainActivity extends Activity {
     static final String HOST = "appassets.androidplatform.net";
     static final String START_URL = "https://" + HOST + "/index.html?app=android&packs=assets/";
 
-    /** Modo internet (Opciones → Datos → App Android): deja salir las peticiones a la cuenta oficial. */
-    private volatile boolean online = false;
-
     private WebView web;
     private LanManager lan;
     private Updater updater;
@@ -83,7 +80,6 @@ public class MainActivity extends Activity {
             public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest req) {
                 Uri u = req.getUrl();
                 if (HOST.equals(u.getHost())) return loader.shouldInterceptRequest(u);
-                if (online) return null;   // cuenta oficial, clasificación, chat…: a internet
                 // Sin internet: cualquier otra petición se corta al instante.
                 return new WebResourceResponse("text/plain", "utf-8", 404, "Offline",
                         new HashMap<>(), new java.io.ByteArrayInputStream(new byte[0]));
@@ -201,7 +197,6 @@ public class MainActivity extends Activity {
         @JavascriptInterface public void lanClose(String id) { lan.close(id); }
         @JavascriptInterface public String lanRooms() { return lan.roomsJson(); }
         @JavascriptInterface public String lanInfo() { return lan.infoJson(); }
-        @JavascriptInterface public void setOnline(boolean on) { online = on; }
         @JavascriptInterface public String updInfo() { return updater.info(); }
         @JavascriptInterface public void updCheck() { runOnUiThread(() -> updater.check(true)); }
         @JavascriptInterface public void updHistory() { updater.history(); }

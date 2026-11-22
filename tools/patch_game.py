@@ -60,17 +60,21 @@ parche("fps", 'values:[0,30],names:["SIN LÍMITE","30 FPS"],desc:"Ahorra baterí
        'values:[0,120,60,30],names:["SIN LÍMITE","120 FPS","60 FPS","30 FPS"],'
        'desc:"SIN LÍMITE va a la frecuencia de tu pantalla (90/120/144 Hz si la tiene). 60 o 30 ahorran batería."')
 
-# 4. Opciones → Datos → App Android: conexión (wifi local / internet), actualizaciones e historial.
+# 4. Opciones → Datos → App Android: actualizaciones, historial y volver a la versión de la APK.
 #    Las acciones las hace window.PI_PORT (js/lan/lan-boot.js).
 parche("app: filas", '{id:"report",label:"Reportar un fallo",kind:"btn",',
-       '...(window.PI_PORT?[{id:"portNet",label:"Conexión",kind:"btn",btn:window.PI_PORT.netName,desc:window.PI_PORT.netDesc},'
-       '{id:"portUpdate",label:"Actualizaciones",kind:"btn",btn:"Buscar",desc:"Si solo cambió el juego, baja únicamente los archivos nuevos."},'
+       '...(window.PI_PORT?[{id:"portUpdate",label:"Actualizaciones",kind:"btn",btn:"Buscar",desc:"Si solo cambió el juego, baja únicamente los archivos nuevos."},'
        '{id:"portHistory",label:"Versiones",kind:"btn",btn:"Ver",desc:"Las versiones publicadas del port y sus novedades."},'
        '{id:"portReset",label:"Versión de la APK",kind:"btn",btn:"Volver",danger:!0,desc:"Si algo falla tras una actualización: vuelve al juego que trae la APK."}]:[]),'
        '{id:"report",label:"Reportar un fallo",kind:"btn",')
 parche("app: grupo", 'Datos:[["Cuenta y datos",["save","cloud","report","directConn","reset"]]]',
-       'Datos:[["Cuenta y datos",["save","cloud","report","directConn","reset"]],["App Android",["portNet","portUpdate","portHistory","portReset"]]]')
+       'Datos:[["Cuenta y datos",["save","cloud","report","directConn","reset"]],["App Android",["portUpdate","portHistory","portReset"]]]')
 parche("app: acciones", 'else"redeem"===o.id?', 'else/^port/.test(o.id)&&window.PI_PORT?window.PI_PORT.action(o.id,e):"redeem"===o.id?')
+
+# 5. Sin servidor: fuera los botones de Amigos, Clan y Chat del menú principal (necesitan otros jugadores en
+#    internet). Misiones, Gacha, Mercado, Pokédex y Ranking siguen, con la cuenta guardada en el teléfono.
+parche("menú: lado derecho", 've=["missions","friends","clan","chat"],', 've=window.PI_LAN?["missions"]:["missions","friends","clan","chat"],')
+parche("menú: botones que no están", 'd=(e,r,l,c,d,u)=>{const p=s(e),m=i(e)||n(e),', 'd=(e,r,l,c,d,u)=>{const p=s(e);if(!p)return;const m=i(e)||n(e),')
 
 # Traducciones de los textos nuevos (inglés y francés van dentro del juego)
 D_ES_AIM = "AUTO TOTAL: dispara solo, primero a los enemigos y luego a lo que se rompe. AUTO: mantenlo y apunta solo al enemigo más cercano."
