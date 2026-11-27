@@ -10,6 +10,7 @@ no hace nada si ya está puesto y avisa si el juego cambió y hay que revisarlo 
 2. Apuntado AUTO TOTAL en táctil: dispara solo, primero al enemigo más cercano y, si no queda ninguno,
    a los objetos que se rompen (rocas, vasijas…). Arrastrar en el lado derecho apunta a mano.
 3. Límite de FPS: además de SIN LÍMITE y 30, opciones de 120 y 60.
+7. window.PI_NS (espacio de nombres del juego) para las plantillas de sala de worldgen (js/salas-worldgen.js).
 """
 import sys
 
@@ -99,6 +100,10 @@ parche("sin servidor: reportar", '{id:"report",label:"Reportar un fallo",kind:"b
 parche("sin cuenta: etiqueta", 'T.tag=function(){return"loading"===T.status?', 'T.tag=function(){return ' + L + '?{text:"Local",color:"#6fdc5a"}:"loading"===T.status?')
 parche("sin cuenta: perfil", 'M="loading"===A?"CONECTANDO":S?n.user.isGuest?"EN LÍNEA · INVITADO":"EN LÍNEA":"DESCONECTADO"',
        'M=' + L + '?"EN ESTE TELÉFONO":"loading"===A?"CONECTANDO":S?n.user.isGuest?"EN LÍNEA · INVITADO":"EN LÍNEA":"DESCONECTADO"')
+
+# 7. worldgen: deja el espacio de nombres del juego en window.PI_NS para que js/salas-worldgen.js pueda añadir
+#    plantillas de sala (Room.TEMPLATES / LAYOUTS_V10) sin tocar el generador.
+parche("worldgen: espacio de nombres", "!function(){var e={};", "!function(){var e=window.PI_NS={};")
 
 # Parche del 02/11/2026 que solo hablaba de Ko-fi: fuera de la lista de PARCHES
 i = s.find('{id:"2026-11-02-2",ver:"1.1.1"')

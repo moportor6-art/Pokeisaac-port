@@ -18,10 +18,14 @@ s = re.sub(r'\s*<script src="js/vendor/supabase-[^"]*"></script>', "", s)
 s = s.replace('<script src="js/vendor/activity-boot.js',
               '<script src="js/lan/lan-boot.js"></script>\n  <script src="js/vendor/activity-boot.js', 1)
 
+# Plantillas de sala de worldgen justo después del juego
+s = re.sub(r'(<script src="js/pokeisaac\.js[^"]*"></script>)',
+           r'\1\n  <script src="js/worldgen.js"></script>\n  <script src="js/salas-worldgen.js"></script>', s, count=1)
+
 # Sin metadatos de la web pública
 s = re.sub(r'\s*<link rel="canonical"[^>]*>', "", s)
 s = re.sub(r'\s*<script type="application/ld\+json">.*?</script>', "", s, flags=re.S)
 
-assert "lan-boot.js" in s and "supabase-" not in s.split("<body>")[1], "parche incompleto"
+assert "salas-worldgen.js" in s and "lan-boot.js" in s and "supabase-" not in s.split("<body>")[1], "parche incompleto"
 open(sys.argv[2], "w", encoding="utf-8").write(s)
 print("index.html adaptado")
